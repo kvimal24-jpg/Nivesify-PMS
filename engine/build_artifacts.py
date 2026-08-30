@@ -15,9 +15,10 @@ def main():
     comps = {r["code"]: dict(r) for r in c.execute("SELECT * FROM companies")}
     sectors = sorted({v["sector"] for v in comps.values()})
     pbs = scoring.load_playbooks(); generic = pbs.get("*", {"metrics": []})
-    for sec, pb in pbs.items():
-        c.execute("INSERT OR REPLACE INTO playbooks VALUES(?,?,?)",
-                  (sec, pb.get("name", sec), json.dumps(pb)))
+    
+    # Load raw master data for calculations
+    mp = os.path.join(config.CACHE, "master_data.json")
+    raw_master = json.load(open(mp, encoding="utf-8")) if os.path.exists(mp) else {}
 
     company_map = {}
     sector_meta = {}
@@ -25,14 +26,16 @@ def main():
         codes = [k for k, v in comps.items() if v["sector"] == sec]
         mdata = db.load_latest_metrics(codes)
         pb = pbs.get(sec, generic)
-        sc = scoring.score_sector(codes, pb, mdata)
+        sc = scoring.score_sector(codes, pb, mdata, raw_master)
+        
         for code, s in zip(codes, sc):
             c.execute("INSERT OR REPLACE INTO scores VALUES(?,?,?)", (code, sec, s))
-        # sector combined analysis
+            
         def avg(path):
             vals = [scoring._val(mdata, x, path) for x in codes]
             vals = [v for v in vals if v is not None]
             return round(sum(vals) / len(vals), 2) if vals else None
+            
         priced = [comps[x] for x in codes if comps[x]["nse"] in prices]
         chgs = [prices[x["nse"]]["chg"] for x in priced if prices[x["nse"]]["chg"] is not None]
         scored = [(x, s) for x, s in zip(codes, sc) if s is not None]
@@ -47,7 +50,7 @@ def main():
                             "brief": pb.get("analyst_brief"), **combined}
     c.commit(); c.close()
 
-    # export JSON for the static frontend
+    # Export JSON
     index = []
     for code, v in comps.items():
         pr = prices.get(v["nse"], {})
