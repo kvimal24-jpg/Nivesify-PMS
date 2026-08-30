@@ -15,7 +15,7 @@ def _val(mdata, code, path):
     sec, met = path.split(".", 1)
     return mdata.get(code, {}).get((sec, met))
 
-# NEW: Robust calculation engine that searches for keys dynamically
+# Robust calculation engine that searches for keys dynamically
 def calculate_missing_metrics(code, raw_data):
     calculated = {}
     pl = raw_data.get("profitLoss", {})
@@ -31,7 +31,6 @@ def calculate_missing_metrics(code, raw_data):
                     except Exception: return None
         return None
 
-    # Fetch values dynamically
     int_earned = get_latest(pl, "interest earned") or get_latest(pl, "income")
     int_exp = get_latest(pl, "interest expended") or get_latest(pl, "expense")
     other_inc = get_latest(pl, "other income")
@@ -55,12 +54,15 @@ def score_sector(codes, playbook, mdata, raw_map):
     layers = []
     for m in playbook.get("metrics", []):
         pairs = []
+        # FIX: Handle both "metric_name" and "name" keys safely
+        metric_name = m.get("metric_name") or m.get("name") or "Unknown"
+        
         for i, c in enumerate(codes):
             v = _val(mdata, c, m["path"])
             # If not in DB, try calculating it from raw master data
-            if v is None and raw_map.get(c):
+            if v is None and raw_map.get(c) and metric_name != "Unknown":
                 calc = calculate_missing_metrics(c, raw_map[c])
-                calc_key = ("calc", m["metric_name"])
+                calc_key = ("calc", metric_name)
                 if calc_key in calc:
                     v = calc[calc_key]
             if v is not None:
