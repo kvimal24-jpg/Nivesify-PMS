@@ -68,7 +68,7 @@ def calculate_missing_metrics(code, raw_data):
 def score_sector(codes, playbook, mdata, raw_map):
     layers = []
     for m in playbook.get("metrics", []):
-        if not m.get("scorable", False):
+        if not m.get("scorable", True):
             continue  # Skip qualitative metrics for scoring
         pairs = []
         metric_name = m.get("metric_name") or m.get("name") or "Unknown"

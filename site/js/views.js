@@ -62,7 +62,7 @@ export async function sector(_, root, s){
     
     ${m.red_flags?.length ? `<section class="card glass"><h2>⚠️ Red Flags — Institutional Kill Switches</h2>
       <div>${m.red_flags.map(rf=>`<div style="margin:10px 0;padding:12px;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.25);border-radius:12px">
-        <b style="color:#fda4af">${rf.flag}</b><br><span class="muted" style="font-size:13px">${rf.reason}</span></div>`).join('')}</div></section>` : ''}
+        <b style="color:#fda4af">${rf.flag || rf.metric || rf.condition || "Unknown"}</b><br><span class="muted" style="font-size:13px">${rf.reason}</span></div>`).join('')}</div></section>` : ''}
     
     ${scoreable.length ? `<section class="card glass"><h2>Quantitative Screening Lens (${scoreable.length} metrics)</h2><div class="tbl">
       <table><thead><tr><th>Metric</th><th>Lens</th><th>Weight</th><th>Direction</th><th>Indian Nuance</th></tr></thead><tbody>
