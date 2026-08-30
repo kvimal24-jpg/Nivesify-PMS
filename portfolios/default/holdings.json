@@ -1,0 +1,9 @@
+{
+  "name": "Founder Portfolio",
+  "transactions": [
+    {"date": "2024-01-15", "code": "500180", "type": "buy", "qty": 10, "price": 1520},
+    {"date": "2024-03-10", "code": "532540", "type": "buy", "qty": 5, "price": 3650},
+    {"date": "2024-06-05", "code": "500325", "type": "buy", "qty": 8, "price": 2450},
+    {"date": "2025-01-20", "code": "532174", "type": "buy", "qty": 12, "price": 1010}
+  ]
+}

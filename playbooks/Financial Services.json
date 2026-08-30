@@ -1,0 +1,28 @@
+{
+  "match": {
+    "sector": "Financial Services"
+  },
+  "name": "Financial Services v1.0 - Institutional Grade",
+  "analyst_brief": "The Indian financial services ecosystem acts as the central transmission engine for economic expansion. The primary operating paradigm relies on accumulating low-cost CASA deposits and deploying this capital into credit assets. Macro tailwinds are anchored by sustained credit growth outstripping nominal GDP, historically low systemic gross NPAs, and robust capitalization ratios. Moats are forged through granular deposit franchises and proprietary underwriting algorithms.",
+  "metrics": [],
+  "red_flags": [
+    {
+      "metric": "Gross NPA",
+      "condition": "> 5.0%",
+      "severity": "Critical",
+      "reason": "Systemic asset quality deterioration."
+    },
+    {
+      "metric": "Pledged Shares",
+      "condition": "> 10.0%",
+      "severity": "Critical",
+      "reason": "Promoter stress indicator."
+    },
+    {
+      "metric": "Capital Adequacy Ratio",
+      "condition": "< 13.0%",
+      "severity": "High",
+      "reason": "Below RBI comfort zone."
+    }
+  ]
+}

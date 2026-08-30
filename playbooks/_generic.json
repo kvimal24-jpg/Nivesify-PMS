@@ -1,0 +1,13 @@
+{
+  "match": {"sector": "*"},
+  "name": "Generic v1",
+  "metrics": [
+    {"name": "ROCE", "path": "ratios.ROCE %", "direction": "higher", "weight": 2},
+    {"name": "ROE", "path": "ratios.ROE %", "direction": "higher", "weight": 2},
+    {"name": "Debt to Equity", "path": "ratios.Debt to equity", "direction": "lower", "weight": 1.5},
+    {"name": "Promoter Holding", "path": "ratios.Promoter holding", "direction": "higher", "weight": 1},
+    {"name": "Pledged %", "path": "ratios.Pledged %", "direction": "lower", "weight": 1.5},
+    {"name": "Sales CAGR", "path": "CAGRs.Sales", "direction": "higher", "weight": 1.5},
+    {"name": "Profit CAGR", "path": "CAGRs.Profit", "direction": "higher", "weight": 1.5}
+  ]
+}
