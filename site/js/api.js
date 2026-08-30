@@ -1,7 +1,7 @@
 const cache = {};
 export async function j(path){
   if(cache[path]) return cache[path];
-  const r = await fetch('data/' + path);
+  const r = await fetch((location.pathname.includes('Nivesify-PMS') ? '/Nivesify-PMS/' : './') + 'data/' + path);
   if(!r.ok) throw new Error(path + ' → ' + r.status);
   const d = await r.json(); cache[path] = d; return d;
 }
