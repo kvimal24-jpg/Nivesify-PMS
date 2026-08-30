@@ -23,15 +23,7 @@
     {"metric_name": "Stock P/E", "lens": "Valuation", "path": "ratios.Stock P/E", "direction": "lower", "weight": 2, "scorable": true, "indian_nuance": "Price to Adjusted Book Value is the standard yardstick for financials."},
     {"metric_name": "Price to Book", "lens": "Valuation", "path": "ratios.Price to book", "direction": "lower", "weight": 2, "scorable": true, "indian_nuance": "Strips disguised bad debt hidden in reported book value."},
     {"metric_name": "Sales Growth (5Y)", "lens": "Growth", "path": "CAGRs.Compounded Sales Growth.5 Years", "direction": "higher", "weight": 2, "scorable": true, "indian_nuance": "Loan growth must be supported by deposit growth; >500bps gap stresses LCR."},
-    {"metric_name": "Profit Growth (5Y)", "lens": "Growth", "path": "CAGRs.Compounded Profit Growth.5 Years", "direction": "higher", "weight": 2, "scorable": true, "indian_nuance": "Sustainable profit growth indicates underwriting discipline."},
-    {"metric_name": "Slippage Ratio", "lens": "Industry-Specific", "path": null, "direction": "lower", "weight": 3, "scorable": false, "indian_nuance": "Fresh NPA additions / opening standard advances. Leading indicator of stress before headline GNPA moves."},
-    {"metric_name": "SMA-1/SMA-2 Pool %", "lens": "Industry-Specific", "path": null, "direction": "lower", "weight": 2, "scorable": false, "indian_nuance": "RBI's early-warning bucket flags latent stress ahead of slippage."},
-    {"metric_name": "ALM Mismatch Profile", "lens": "Industry-Specific", "path": null, "direction": "lower", "weight": 3, "scorable": false, "indian_nuance": "Critical for NBFCs/HFCs; negative short-bucket mismatches caused the IL&FS-style rollover panic."},
-    {"metric_name": "Liquidity Coverage Ratio", "lens": "Balance Sheet", "path": null, "direction": "higher", "weight": 2, "scorable": false, "indian_nuance": "RBI floor is 100%; PMS prefers >120% buffer in volatile-rate regimes."},
-    {"metric_name": "VNB Margin (Insurers)", "lens": "Industry-Specific", "path": null, "direction": "higher", "weight": 3, "scorable": false, "indian_nuance": "Non-par/protection-heavy mix pushes VNB margins to 25-28% for life insurers."},
-    {"metric_name": "Combined Ratio (Gen. Insurance)", "lens": "Industry-Specific", "path": null, "direction": "lower", "weight": 3, "scorable": false, "indian_nuance": "<100% is pure underwriting profit; >100% relies on investment float."},
-    {"metric_name": "Equity AUM Mix & SIP Run-Rate", "lens": "Industry-Specific", "path": null, "direction": "higher", "weight": 2, "scorable": false, "indian_nuance": "Equity AUM earns 60-80bps yield vs 10-15bps for debt AUM."},
-    {"metric_name": "Unsecured Loan Portfolio %", "lens": "Industry-Specific", "path": null, "direction": "lower", "weight": 2, "scorable": false, "indian_nuance": "Mix>25% raises RBI risk-weight capital charges and default risk in downturns."}
+    {"metric_name": "Profit Growth (5Y)", "lens": "Growth", "path": "CAGRs.Compounded Profit Growth.5 Years", "direction": "higher", "weight": 2, "scorable": true, "indian_nuance": "Sustainable profit growth indicates underwriting discipline."}
   ],
   "red_flags": [
     {"flag": "Large divergence between RBI Asset Quality Review findings and reported NPAs", "reason": "Indicates loan evergreening and can trigger Prompt Corrective Action."},

@@ -36,8 +36,8 @@ export async function home(_, root){
 export async function sector(_, root, s){
   clearCharts();
   const d = await j(`sector__${s}.json`); const m = d.meta;
-  const scoreable = (m.metrics||[]).filter(x=>x.scorable);
-  const qualitative = (m.metrics||[]).filter(x=>!x.scorable);
+  const scoreable = (m.metrics||[]).filter(x=>x.scorable !== false);
+  const qualitative = (m.metrics||[]).filter(x=>x.scorable === false);
   
   root.innerHTML = `
     <section class="hero glass"><h1>${m.name}</h1>
@@ -61,17 +61,20 @@ export async function sector(_, root, s){
     </div></section>
     
     ${m.red_flags?.length ? `<section class="card glass"><h2>⚠️ Red Flags — Institutional Kill Switches</h2>
-      <div>${m.red_flags.map(rf=>`<div style="margin:10px 0;padding:12px;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.25);border-radius:12px">
-        <b style="color:#fda4af">${rf.flag || rf.metric || rf.condition || "Unknown"}</b><br><span class="muted" style="font-size:13px">${rf.reason}</span></div>`).join('')}</div></section>` : ''}
+      <div>${m.red_flags.map(rf=>{
+        const flagText = rf.flag || rf.metric || rf.condition || 'Unknown flag';
+        return `<div style="margin:10px 0;padding:12px;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.25);border-radius:12px">
+          <b style="color:#fda4af">${flagText}</b><br><span class="muted" style="font-size:13px">${rf.reason||''}</span></div>`;
+      }).join('')}</div></section>` : ''}
     
     ${scoreable.length ? `<section class="card glass"><h2>Quantitative Screening Lens (${scoreable.length} metrics)</h2><div class="tbl">
       <table><thead><tr><th>Metric</th><th>Lens</th><th>Weight</th><th>Direction</th><th>Indian Nuance</th></tr></thead><tbody>
-      ${scoreable.map(mt=>`<tr style="cursor:default"><td><b>${mt.metric_name}</b></td><td><span class="chip">${mt.lens}</span></td><td>${'★'.repeat(mt.weight||1)}</td><td class="${mt.direction==='higher'?'up':'dn'}">${mt.direction==='higher'?'↑ Higher':'↓ Lower'}</td><td class="muted" style="font-size:12px;max-width:300px;white-space:normal">${mt.indian_nuance||''}</td></tr>`).join('')}
+      ${scoreable.map(mt=>`<tr style="cursor:default"><td><b>${mt.metric_name || mt.name}</b></td><td><span class="chip">${mt.lens||''}</span></td><td>${'★'.repeat(mt.weight||1)}</td><td class="${mt.direction==='higher'?'up':'dn'}">${mt.direction==='higher'?'↑ Higher':'↓ Lower'}</td><td class="muted" style="font-size:12px;max-width:300px;white-space:normal">${mt.indian_nuance||''}</td></tr>`).join('')}
       </tbody></table></div></section>` : ''}
     
     ${qualitative.length ? `<section class="card glass"><h2>Qualitative Indicators (${qualitative.length} metrics)</h2><div class="tbl">
       <table><thead><tr><th>Metric</th><th>Lens</th><th>Weight</th><th>Direction</th><th>Indian Nuance</th></tr></thead><tbody>
-      ${qualitative.map(mt=>`<tr style="cursor:default"><td><b>${mt.metric_name}</b></td><td><span class="chip">${mt.lens}</span></td><td>${'★'.repeat(mt.weight||1)}</td><td class="${mt.direction==='higher'?'up':'dn'}">${mt.direction==='higher'?'↑ Higher':'↓ Lower'}</td><td class="muted" style="font-size:12px;max-width:300px;white-space:normal">${mt.indian_nuance||''}</td></tr>`).join('')}
+      ${qualitative.map(mt=>`<tr style="cursor:default"><td><b>${mt.metric_name || mt.name}</b></td><td><span class="chip">${mt.lens||''}</span></td><td>${'★'.repeat(mt.weight||1)}</td><td class="${mt.direction==='higher'?'up':'dn'}">${mt.direction==='higher'?'↑ Higher':'↓ Lower'}</td><td class="muted" style="font-size:12px;max-width:300px;white-space:normal">${mt.indian_nuance||''}</td></tr>`).join('')}
       </tbody></table></div>
       <p class="muted" style="margin-top:10px;font-size:12px">ℹ️ These metrics require regulatory filings, concall transcripts, or proprietary data sources not available in Screener.in. They are displayed for analyst context.</p></section>` : ''}
     

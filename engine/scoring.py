@@ -36,28 +36,22 @@ def calculate_missing_metrics(code, raw_data):
     op_exp = get_latest(pl, "operating expense")
     provisions = get_latest(pl, "provision")
     advances = get_latest(bs, "advances")
-    total_deposits = get_latest(bs, "deposit")
     
-    # NIM
     if int_earned and int_exp and advances and advances > 0:
         calculated[("calc", "NIM")] = round(((int_earned - int_exp) / advances) * 100, 2)
     
-    # Cost-to-Income
     if int_earned and op_exp:
         total_inc = int_earned + (other_inc if other_inc else 0)
         if total_inc > 0:
             calculated[("calc", "Cost to Income")] = round((op_exp / total_inc) * 100, 2)
     
-    # Credit Cost (Provisions / Advances)
     if provisions and advances and advances > 0:
         calculated[("calc", "Credit Cost")] = round((provisions / advances) * 100, 2)
     
-    # PCR approximation (if we can find both)
     gnma = get_latest(bs, "npa")
     if provisions and gnma and gnma > 0:
         calculated[("calc", "PCR")] = round((provisions / gnma) * 100, 2)
     
-    # Fee Income Ratio
     if other_inc and int_earned:
         total_inc = int_earned + other_inc
         if total_inc > 0:
@@ -68,8 +62,10 @@ def calculate_missing_metrics(code, raw_data):
 def score_sector(codes, playbook, mdata, raw_map):
     layers = []
     for m in playbook.get("metrics", []):
-        if not m.get("scorable", True):
-            continue  # Skip qualitative metrics for scoring
+        # Handle both old (no scorable field) and new (scorable: true/false) formats
+        if m.get("scorable", True) == False:
+            continue
+            
         pairs = []
         metric_name = m.get("metric_name") or m.get("name") or "Unknown"
         
