@@ -5,7 +5,6 @@ from engine import config, db, fetch_datalake, fetch_prices, fetch_macro, scorin
 
 def slug(s): return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
 
-# BULLETPROOF SANITIZER: Catches Python floats, NumPy floats, and NaN/Inf
 def sanitize_for_json(obj):
     if isinstance(obj, dict):
         return {k: sanitize_for_json(v) for k, v in obj.items()}
@@ -16,7 +15,7 @@ def sanitize_for_json(obj):
     elif isinstance(obj, (float, np.floating)):
         f = float(obj)
         if math.isnan(f) or math.isinf(f):
-            return None  # Force NaN/Inf to become JSON 'null'
+            return None
         return f
     elif isinstance(obj, np.ndarray):
         return sanitize_for_json(obj.tolist())
@@ -40,6 +39,7 @@ def main():
     mp = os.path.join(config.CACHE, "master_data.json")
     raw_master = json.load(open(mp, encoding="utf-8")) if os.path.exists(mp) else {}
 
+    sector_meta = {}
     for sec in sectors:
         codes = [k for k, v in comps.items() if v["sector"] == sec]
         mdata = db.load_latest_metrics(codes)
@@ -50,6 +50,7 @@ def main():
             c.execute("INSERT OR REPLACE INTO scores VALUES(?,?,?)", (code, sec, s))
             
         def avg(path):
+            if path is None: return None
             vals = [scoring._val(mdata, x, path) for x in codes]
             vals = [v for v in vals if v is not None and not (isinstance(v, float) and math.isnan(v))]
             return round(sum(vals) / len(vals), 2) if vals else None
@@ -58,15 +59,26 @@ def main():
         chgs = [prices[x["nse"]]["chg"] for x in priced if prices[x["nse"]].get("chg") is not None]
         scored = [(x, s) for x, s in zip(codes, sc) if s is not None]
         scored.sort(key=lambda t: -t[1])
+        
         combined = {"count": len(codes), "avg_score": round(sum(s for _, s in scored) / max(1, len(scored)), 1) if scored else None,
                     "avg_roce": avg("ratios.ROCE %"), "avg_roe": avg("ratios.ROE %"),
                     "avg_pe": avg("ratios.Stock P/E"), "avg_de": avg("ratios.Debt to equity"),
                     "momentum": round(sum(chgs) / len(chgs), 2) if chgs else None,
                     "top": [{"code": x, "name": comps[x]["name"], "score": s} for x, s in scored[:10]]}
         c.execute("INSERT OR REPLACE INTO sector_text VALUES(?,?)", (sec, json.dumps(sanitize_for_json(combined))))
-        sector_meta = {sec: {"slug": slug(sec), "name": sec, "playbook": pb.get("name", "Generic v1"),
-                            "brief": pb.get("analyst_brief"), **combined} for sec in sectors}
-
+        
+        sector_meta[sec] = {
+            "slug": slug(sec), "name": sec,
+            "playbook": pb.get("name", "Generic v1"),
+            "brief": pb.get("analyst_brief"),
+            "regulators": pb.get("key_regulators", []),
+            "macro_sensitivities": pb.get("macro_sensitivities", []),
+            "associations": pb.get("industry_associations", []),
+            "competitive_landscape": pb.get("competitive_landscape"),
+            "metrics": pb.get("metrics", []),
+            "red_flags": pb.get("red_flags", []),
+            **combined
+        }
     c.commit(); c.close()
 
     index = []

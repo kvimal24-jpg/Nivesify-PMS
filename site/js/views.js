@@ -36,10 +36,21 @@ export async function home(_, root){
 export async function sector(_, root, s){
   clearCharts();
   const d = await j(`sector__${s}.json`); const m = d.meta;
+  const scoreable = (m.metrics||[]).filter(x=>x.scorable);
+  const qualitative = (m.metrics||[]).filter(x=>!x.scorable);
+  
   root.innerHTML = `
     <section class="hero glass"><h1>${m.name}</h1>
-      <p>${m.brief ? String(m.brief).split('\n')[0] : 'Playbook research in progress — generic scoring active.'}</p>
-      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><span class="chip">${m.count} companies</span><span class="chip good">${m.playbook}</span></div></section>
+      <p>${m.brief || 'Playbook research in progress.'}</p>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <span class="chip">${m.count} companies</span>
+        <span class="chip good">${m.playbook}</span>
+        ${(m.regulators||[]).map(r=>`<span class="chip">${r}</span>`).join('')}
+      </div></section>
+    
+    ${m.macro_sensitivities?.length ? `<section class="card glass"><h2>Macro Sensitivities</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${m.macro_sensitivities.map(ms=>`<span class="chip warn">${ms}</span>`).join('')}</div></section>` : ''}
+    
     <section class="card glass"><h2>Sector Combined Analysis</h2><div class="kpis">
       <div class="kpi glass"><label>Avg Score</label><div class="v">${m.avg_score ?? '—'}</div></div>
       <div class="kpi glass"><label>Avg ROCE</label><div class="v">${num(m.avg_roce)}</div></div>
@@ -48,10 +59,29 @@ export async function sector(_, root, s){
       <div class="kpi glass"><label>Avg D/E</label><div class="v">${num(m.avg_de)}</div></div>
       <div class="kpi glass"><label>Momentum</label><div class="v ${(m.momentum||0)>=0?'up':'dn'}">${pct(m.momentum)}</div></div>
     </div></section>
+    
+    ${m.red_flags?.length ? `<section class="card glass"><h2>⚠️ Red Flags — Institutional Kill Switches</h2>
+      <div>${m.red_flags.map(rf=>`<div style="margin:10px 0;padding:12px;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.25);border-radius:12px">
+        <b style="color:#fda4af">${rf.flag}</b><br><span class="muted" style="font-size:13px">${rf.reason}</span></div>`).join('')}</div></section>` : ''}
+    
+    ${scoreable.length ? `<section class="card glass"><h2>Quantitative Screening Lens (${scoreable.length} metrics)</h2><div class="tbl">
+      <table><thead><tr><th>Metric</th><th>Lens</th><th>Weight</th><th>Direction</th><th>Indian Nuance</th></tr></thead><tbody>
+      ${scoreable.map(mt=>`<tr style="cursor:default"><td><b>${mt.metric_name}</b></td><td><span class="chip">${mt.lens}</span></td><td>${'★'.repeat(mt.weight||1)}</td><td class="${mt.direction==='higher'?'up':'dn'}">${mt.direction==='higher'?'↑ Higher':'↓ Lower'}</td><td class="muted" style="font-size:12px;max-width:300px;white-space:normal">${mt.indian_nuance||''}</td></tr>`).join('')}
+      </tbody></table></div></section>` : ''}
+    
+    ${qualitative.length ? `<section class="card glass"><h2>Qualitative Indicators (${qualitative.length} metrics)</h2><div class="tbl">
+      <table><thead><tr><th>Metric</th><th>Lens</th><th>Weight</th><th>Direction</th><th>Indian Nuance</th></tr></thead><tbody>
+      ${qualitative.map(mt=>`<tr style="cursor:default"><td><b>${mt.metric_name}</b></td><td><span class="chip">${mt.lens}</span></td><td>${'★'.repeat(mt.weight||1)}</td><td class="${mt.direction==='higher'?'up':'dn'}">${mt.direction==='higher'?'↑ Higher':'↓ Lower'}</td><td class="muted" style="font-size:12px;max-width:300px;white-space:normal">${mt.indian_nuance||''}</td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="muted" style="margin-top:10px;font-size:12px">ℹ️ These metrics require regulatory filings, concall transcripts, or proprietary data sources not available in Screener.in. They are displayed for analyst context.</p></section>` : ''}
+    
+    ${m.competitive_landscape ? `<section class="card glass"><h2>Competitive Landscape</h2><p class="muted">${m.competitive_landscape}</p></section>` : ''}
+    
     <section class="split">
       <div class="card glass"><h2>Leaderboard — Composite Score</h2><div class="chart-box"><canvas id="c1"></canvas></div></div>
       <div class="card glass"><h2>Full Universe</h2><div class="tbl" id="t"></div></div>
     </section>`;
+    
   const top = d.stocks.slice(0,10);
   bar('c1', top.map(x=>x.name.split(' ')[0]), top.map(x=>x.score||0), 'Score', '#22d3ee');
   root.querySelector('#t').innerHTML = `<table><thead><tr><th>#</th><th>Company</th><th>Industry</th><th>Price</th><th>Chg</th><th>Score</th></tr></thead><tbody>` +
