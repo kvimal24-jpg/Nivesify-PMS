@@ -1,9 +1,21 @@
-import os, re, json
+import os, re, json, math
 from datetime import datetime, timezone
 from engine import config, db, fetch_datalake, fetch_prices, fetch_macro, scoring, portfolio_engine
 
 def slug(s): return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
-def write(name, obj): json.dump(obj, open(os.path.join(config.SITE_DATA, name), "w"), ensure_ascii=False)
+
+# NEW: JSON Sanitizer to prevent "NaN" in output files
+def sanitize_for_json(obj):
+    if isinstance(obj, dict):
+        return {k: sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_for_json(v) for v in obj]
+    elif isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    return obj
+
+def write(name, obj): 
+    json.dump(sanitize_for_json(obj), open(os.path.join(config.SITE_DATA, name), "w"), ensure_ascii=False)
 
 def main():
     db.init(); db.reset(); os.makedirs(config.SITE_DATA, exist_ok=True)
@@ -33,19 +45,19 @@ def main():
             
         def avg(path):
             vals = [scoring._val(mdata, x, path) for x in codes]
-            vals = [v for v in vals if v is not None]
+            vals = [v for v in vals if v is not None and not (isinstance(v, float) and math.isnan(v))]
             return round(sum(vals) / len(vals), 2) if vals else None
             
         priced = [comps[x] for x in codes if comps[x]["nse"] in prices]
-        chgs = [prices[x["nse"]]["chg"] for x in priced if prices[x["nse"]]["chg"] is not None]
+        chgs = [prices[x["nse"]]["chg"] for x in priced if prices[x["nse"]].get("chg") is not None]
         scored = [(x, s) for x, s in zip(codes, sc) if s is not None]
         scored.sort(key=lambda t: -t[1])
-        combined = {"count": len(codes), "avg_score": round(sum(s for _, s in scored) / max(1, len(scored)), 1),
+        combined = {"count": len(codes), "avg_score": round(sum(s for _, s in scored) / max(1, len(scored)), 1) if scored else None,
                     "avg_roce": avg("ratios.ROCE %"), "avg_roe": avg("ratios.ROE %"),
                     "avg_pe": avg("ratios.Stock P/E"), "avg_de": avg("ratios.Debt to equity"),
                     "momentum": round(sum(chgs) / len(chgs), 2) if chgs else None,
                     "top": [{"code": x, "name": comps[x]["name"], "score": s} for x, s in scored[:10]]}
-        c.execute("INSERT OR REPLACE INTO sector_text VALUES(?,?)", (sec, json.dumps(combined)))
+        c.execute("INSERT OR REPLACE INTO sector_text VALUES(?,?)", (sec, json.dumps(sanitize_for_json(combined))))
         sector_meta[sec] = {"slug": slug(sec), "name": sec, "playbook": pb.get("name", "Generic v1"),
                             "brief": pb.get("analyst_brief"), **combined}
     c.commit(); c.close()
