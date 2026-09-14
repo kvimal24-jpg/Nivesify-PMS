@@ -14,7 +14,22 @@ def _val(mdata, code, path):
     if path is None: return None
     if "." not in path: return None
     sec, met = path.split(".", 1)
-    return mdata.get(code, {}).get((sec, met))
+    
+    # 1. Exact match first
+    exact = mdata.get(code, {}).get((sec, met))
+    if exact is not None:
+        return exact
+        
+    # 2. Fuzzy match (case-insensitive, ignores spaces and %)
+    code_data = mdata.get(code, {})
+    target_met_lower = met.lower().replace(" ", "").replace("%", "")
+    for (s, m), v in code_data.items():
+        if s == sec:
+            m_normalized = m.lower().replace(" ", "").replace("%", "")
+            if target_met_lower == m_normalized:
+                return v
+                
+    return None
 
 def calculate_missing_metrics(code, raw_data):
     calculated = {}
@@ -25,9 +40,17 @@ def calculate_missing_metrics(code, raw_data):
         for key, val in section.items():
             if key_part.lower() in key.lower() and isinstance(val, dict):
                 years = [y for y in val.keys() if y not in ["", "TTM", "x", "X"]]
-                if years:
-                    try: return float(val[years[-1]])
-                    except Exception: return None
+                # FIX: Iterate BACKWARDS to find the most recent VALID float
+                for y in reversed(years):
+                    try:
+                        v = val[y]
+                        if v is None: continue
+                        if isinstance(v, (int, float)): return float(v)
+                        s = str(v).replace(",", "").replace("%", "").strip()
+                        if s in ("", "-"): continue
+                        return float(s)
+                    except Exception:
+                        continue
         return None
 
     int_earned = get_latest(pl, "interest earned") or get_latest(pl, "income")
@@ -68,7 +91,6 @@ def score_sector(codes, playbook, mdata, raw_map):
         pairs = []
         metric_name = m.get("metric_name") or m.get("name") or "Unknown"
         
-        # FIX: Get the primary path AND any aliases to try all of them
         paths_to_try = [m.get("path")] + m.get("aliases", [])
         
         for i, c in enumerate(codes):
@@ -84,7 +106,7 @@ def score_sector(codes, playbook, mdata, raw_map):
                         v = calc[calc_key]
                         
                 if v is not None:
-                    break # Found a valid value, stop checking aliases
+                    break
                     
             if v is not None:
                 pairs.append((i, v))

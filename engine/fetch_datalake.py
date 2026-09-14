@@ -31,7 +31,6 @@ def normalize(master, mapped):
         for section, body in raw.items():
             if section in ("analysis", "documents", "CompanyName") or not isinstance(body, dict): continue
             
-            # CRITICAL FIX: Handle the 'data' wrapper structure from Screener
             if "data" in body and isinstance(body["data"], dict):
                 metrics_dict = body["data"]
             elif section == "CAGRs":
@@ -42,10 +41,19 @@ def normalize(master, mapped):
             for metric, val in metrics_dict.items():
                 if isinstance(val, dict):
                     latest = None
+                    # Store all valid periods
                     for period, v in val.items():
                         fv = db.tofloat(v)
                         if fv is not None:
-                            metrics.append((code, section, metric, str(period), fv)); latest = fv
+                            metrics.append((code, section, metric, str(period), fv))
+                            latest = fv
+                            
+                    # FIX: Prioritize TTM (Trailing Twelve Months) for "latest"
+                    if "TTM" in val:
+                        fv_ttm = db.tofloat(val["TTM"])
+                        if fv_ttm is not None:
+                            latest = fv_ttm
+                            
                     if latest is not None:
                         metrics.append((code, section, metric, "latest", latest))
                 else:
