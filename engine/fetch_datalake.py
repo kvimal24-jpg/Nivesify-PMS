@@ -17,37 +17,55 @@ def download():
     return master, mapped
 
 def normalize(master, mapped):
-    c = db.conn()
-    companies, metrics, raws = [], [], []
-    
+    companies, metrics, proscons, raws = [], [], [], []
     for _, row in mapped.iterrows():
         code = row["BSE_Code"]; raw = master.get(code)
         if not raw: continue
         companies.append((code, row["Company_Name"], row["Sector"], row["Industry"], str(row["NSE_Code"])))
         raws.append((code, json.dumps(raw)))
         
-        # STRICTLY PARSE THE DATA LAKE STRUCTURE (headers/data)
-        for section in ["quarters", "profitLoss", "balanceSheet", "cashFlow", "ratios", "shareholding"]:
-            body = raw.get(section, {})
-            data = body.get("data", {})
-            for metric, periods in data.items():
-                if isinstance(periods, dict):
-                    for period, val in periods.items():
-                        fv = db.tofloat(val)
+        for kind in ("pros", "cons"):
+            for t in ((raw.get("analysis") or {}).get(kind) or []):
+                proscons.append((code, kind, str(t)))
+                
+        for section, body in raw.items():
+            if section in ("analysis", "documents", "CompanyName") or not isinstance(body, dict): continue
+            
+            if "data" in body and isinstance(body["data"], dict):
+                metrics_dict = body["data"]
+            elif section == "CAGRs":
+                metrics_dict = body
+            else:
+                continue
+                
+            for metric, val in metrics_dict.items():
+                if isinstance(val, dict):
+                    latest = None
+                    # Store all valid periods
+                    for period, v in val.items():
+                        fv = db.tofloat(v)
                         if fv is not None:
                             metrics.append((code, section, metric, str(period), fv))
+                            latest = fv
                             
-        # CAGRs have no 'data' wrapper
-        cagrs = raw.get("CAGRs", {})
-        for metric, periods in cagrs.items():
-            if isinstance(periods, dict):
-                for period, val in periods.items():
+                    # FIX: Prioritize TTM for "latest"
+                    if "TTM" in val:
+                        fv_ttm = db.tofloat(val["TTM"])
+                        if fv_ttm is not None:
+                            latest = fv_ttm
+                            
+                    # CRITICAL: Insert the 'latest' tag so the engine can find it
+                    if latest is not None:
+                        metrics.append((code, section, metric, "latest", latest))
+                else:
                     fv = db.tofloat(val)
                     if fv is not None:
-                        metrics.append((code, "CAGRs", metric, str(period), fv))
-
+                        metrics.append((code, section, metric, "latest", fv))
+                        
+    c = db.conn()
     c.executemany("INSERT OR REPLACE INTO companies VALUES(?,?,?,?,?)", companies)
     c.executemany("INSERT OR REPLACE INTO raw VALUES(?,?)", raws)
+    c.executemany("INSERT OR REPLACE INTO pros_cons VALUES(?,?,?)", proscons)
     c.executemany("INSERT OR REPLACE INTO metrics VALUES(?,?,?,?,?)", metrics)
     c.commit(); c.close()
     print(f"  loaded {len(metrics)} metrics for {len(companies)} companies")
