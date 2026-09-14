@@ -17,8 +17,6 @@ def sanitize_for_json(obj):
         if math.isnan(f) or math.isinf(f):
             return None
         return f
-    elif isinstance(obj, np.ndarray):
-        return sanitize_for_json(obj.tolist())
     return obj
 
 def write(name, obj): 
@@ -34,53 +32,68 @@ def main():
     c = db.conn()
     comps = {r["code"]: dict(r) for r in c.execute("SELECT * FROM companies")}
     sectors = sorted({v["sector"] for v in comps.values()})
-    pbs = scoring.load_playbooks(); generic = pbs.get("*", {"metrics": []})
     
-    mp = os.path.join(config.CACHE, "master_data.json")
-    raw_master = json.load(open(mp, encoding="utf-8")) if os.path.exists(mp) else {}
-
     sector_meta = {}
     for sec in sectors:
+        print(f"  Scoring {sec}...")
         codes = [k for k, v in comps.items() if v["sector"] == sec]
-        mdata = db.load_latest_metrics(codes)
-        pb = pbs.get(sec, generic)
-        sc = scoring.score_sector(codes, pb, mdata, raw_master)
         
-        for code, s in zip(codes, sc):
+        # DYNAMIC SCORING: Find common metrics and score them automatically
+        common_metrics = scoring.get_common_metrics(sec)
+        
+        # Define direction for scoring
+        metrics_to_score = []
+        for s, m in common_metrics:
+            if "debt" in m.lower() or "pe" in m.lower() or "price to book" in m.lower() or "gnpa" in m.lower() or "nnpa" in m.lower() or "pledged" in m.lower():
+                direction = "lower"
+            else:
+                direction = "higher"
+            metrics_to_score.append((s, m, direction))
+            
+        scores = scoring.score_sector(codes, metrics_to_score)
+        
+        for code, s in scores.items():
             c.execute("INSERT OR REPLACE INTO scores VALUES(?,?,?)", (code, sec, s))
             
-        def avg(path):
-            if path is None: return None
-            vals = [scoring._val(mdata, x, path) for x in codes]
-            vals = [v for v in vals if v is not None and not (isinstance(v, float) and math.isnan(v))]
-            return round(sum(vals) / len(vals), 2) if vals else None
+        # Sector stats
+        def avg(section, metric):
+            vals = []
+            for code in codes:
+                row = c.execute("SELECT value FROM metrics WHERE code=? AND section=? AND metric=? AND period='TTM'", (code, section, metric)).fetchone()
+                if not row:
+                    row = c.execute("SELECT value FROM metrics WHERE code=? AND section=? AND metric=? AND period NOT IN ('TTM','x','X','') ORDER BY period DESC LIMIT 1", (code, section, metric)).fetchone()
+                if row and row["value"]: vals.append(row["value"])
+            return round(sum(vals)/len(vals), 2) if vals else None
             
         priced = [comps[x] for x in codes if comps[x]["nse"] in prices]
         chgs = [prices[x["nse"]]["chg"] for x in priced if prices[x["nse"]].get("chg") is not None]
-        scored = [(x, s) for x, s in zip(codes, sc) if s is not None]
-        scored.sort(key=lambda t: -t[1])
         
-        combined = {"count": len(codes), "avg_score": round(sum(s for _, s in scored) / max(1, len(scored)), 1) if scored else None,
-                    "avg_roce": avg("ratios.ROCE %"), "avg_roe": avg("ratios.ROE %"),
-                    "avg_pe": avg("ratios.Stock P/E"), "avg_de": avg("ratios.Debt to equity"),
-                    "momentum": round(sum(chgs) / len(chgs), 2) if chgs else None,
-                    "top": [{"code": x, "name": comps[x]["name"], "score": s} for x, s in scored[:10]]}
-        c.execute("INSERT OR REPLACE INTO sector_text VALUES(?,?)", (sec, json.dumps(sanitize_for_json(combined))))
+        scored_list = [(x, scores[x]) for x in codes if scores.get(x) is not None]
+        scored_list.sort(key=lambda t: -t[1])
         
+        combined = {
+            "count": len(codes), 
+            "avg_score": round(sum(s for _, s in scored_list) / max(1, len(scored_list)), 1) if scored_list else None,
+            "avg_roce": avg("ratios", "ROCE %"), 
+            "avg_roe": avg("ratios", "ROE %"),
+            "avg_pe": avg("ratios", "Stock P/E"), 
+            "avg_de": avg("ratios", "Debt to equity"),
+            "momentum": round(sum(chgs) / len(chgs), 2) if chgs else None,
+            "top": [{"code": x, "name": comps[x]["name"], "score": s} for x, s in scored_list[:10]]
+        }
+        
+        # Store sector meta
         sector_meta[sec] = {
             "slug": slug(sec), "name": sec,
-            "playbook": pb.get("name", "Generic v1"),
-            "brief": pb.get("analyst_brief"),
-            "regulators": pb.get("key_regulators", []),
-            "macro_sensitivities": pb.get("macro_sensitivities", []),
-            "associations": pb.get("industry_associations", []),
-            "competitive_landscape": pb.get("competitive_landscape"),
-            "metrics": pb.get("metrics", []),
-            "red_flags": pb.get("red_flags", []),
+            "playbook": f"Dynamic {sec} v2.0",
+            "brief": f"Automatically scored using {len(metrics_to_score)} common metrics across {len(codes)} companies.",
+            "metrics": [{"metric_name": m, "path": f"{s}.{m}"} for s,m in common_metrics],
             **combined
         }
+
     c.commit(); c.close()
 
+    # Write files
     index = []
     for code, v in comps.items():
         pr = prices.get(v["nse"], {})
@@ -95,23 +108,25 @@ def main():
         stocks.sort(key=lambda r: r["score"] if r["score"] is not None else -1, reverse=True)
         write(f"sector__{meta['slug']}.json", {"meta": meta, "stocks": stocks})
         
+    # Stock details
     cc = db.conn()
     for code in comps:
         raw = json.loads(cc.execute("SELECT blob FROM raw WHERE code=?", (code,)).fetchone()["blob"])
         v = comps[code]; pr = prices.get(v["nse"], {})
         srow = cc.execute("SELECT score FROM scores WHERE code=?", (code,)).fetchone()
-        pros = [r["text"] for r in cc.execute("SELECT text FROM pros_cons WHERE code=? AND kind='pros'", (code,))]
-        cons = [r["text"] for r in cc.execute("SELECT text FROM pros_cons WHERE code=? AND kind='cons'", (code,))]
-        raw.setdefault("analysis", {})["pros"] = pros; raw["analysis"]["cons"] = cons
         write(f"stock__{code}.json", {"code": code, "name": v["name"], "sector": v["sector"],
               "industry": v["industry"], "price": pr.get("price"), "chg": pr.get("chg"),
               "score": srow["score"] if srow else None, "raw": raw})
     cc.close()
     
+    # Macro
     mc = db.conn(); macro = [dict(r) for r in mc.execute("SELECT * FROM macro")]; mc.close()
     write("macro.json", macro)
+    
+    # Portfolios
     ports = portfolio_engine.build_all({k: {**v, "price": prices.get(v["nse"], {}).get("price")} for k, v in comps.items()})
     for cid, p in ports.items(): write(f"portfolio__{cid}.json", p)
+    
     write("meta.json", {"built_at": datetime.now(timezone.utc).isoformat(), "companies": len(comps),
                         "sectors": len(sectors), "portfolios": list(ports)})
     print(f"✓ Built {len(comps)} companies · {len(sectors)} sectors")
