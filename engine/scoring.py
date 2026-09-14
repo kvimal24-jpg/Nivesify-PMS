@@ -18,7 +18,6 @@ def _val(mdata, code, path):
 
 def calculate_missing_metrics(code, raw_data):
     calculated = {}
-    # FIX: Access the 'data' dictionary inside the sections
     pl = raw_data.get("profitLoss", {}).get("data", {})
     bs = raw_data.get("balanceSheet", {}).get("data", {})
     
@@ -69,13 +68,24 @@ def score_sector(codes, playbook, mdata, raw_map):
         pairs = []
         metric_name = m.get("metric_name") or m.get("name") or "Unknown"
         
+        # FIX: Get the primary path AND any aliases to try all of them
+        paths_to_try = [m.get("path")] + m.get("aliases", [])
+        
         for i, c in enumerate(codes):
-            v = _val(mdata, c, m.get("path"))
-            if v is None and raw_map.get(c) and m.get("path", "").startswith("calc."):
-                calc = calculate_missing_metrics(c, raw_map[c])
-                calc_key = ("calc", metric_name)
-                if calc_key in calc:
-                    v = calc[calc_key]
+            v = None
+            for p in paths_to_try:
+                if p is None: continue
+                v = _val(mdata, c, p)
+                    
+                if v is None and raw_map.get(c) and p.startswith("calc."):
+                    calc = calculate_missing_metrics(c, raw_map[c])
+                    calc_key = ("calc", metric_name)
+                    if calc_key in calc:
+                        v = calc[calc_key]
+                        
+                if v is not None:
+                    break # Found a valid value, stop checking aliases
+                    
             if v is not None:
                 pairs.append((i, v))
                 
