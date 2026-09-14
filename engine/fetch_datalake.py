@@ -23,12 +23,23 @@ def normalize(master, mapped):
         if not raw: continue
         companies.append((code, row["Company_Name"], row["Sector"], row["Industry"], str(row["NSE_Code"])))
         raws.append((code, json.dumps(raw)))
+        
         for kind in ("pros", "cons"):
             for t in ((raw.get("analysis") or {}).get(kind) or []):
                 proscons.append((code, kind, str(t)))
+                
         for section, body in raw.items():
             if section in ("analysis", "documents", "CompanyName") or not isinstance(body, dict): continue
-            for metric, val in body.items():
+            
+            # CRITICAL FIX: Handle the 'data' wrapper structure from Screener
+            if "data" in body and isinstance(body["data"], dict):
+                metrics_dict = body["data"]
+            elif section == "CAGRs":
+                metrics_dict = body
+            else:
+                continue
+                
+            for metric, val in metrics_dict.items():
                 if isinstance(val, dict):
                     latest = None
                     for period, v in val.items():
@@ -41,11 +52,11 @@ def normalize(master, mapped):
                     fv = db.tofloat(val)
                     if fv is not None:
                         metrics.append((code, section, metric, "latest", fv))
+                        
     c = db.conn()
     c.executemany("INSERT OR REPLACE INTO companies VALUES(?,?,?,?,?)", companies)
     c.executemany("INSERT OR REPLACE INTO raw VALUES(?,?)", raws)
     c.executemany("INSERT OR REPLACE INTO pros_cons VALUES(?,?,?)", proscons)
     c.executemany("INSERT OR REPLACE INTO metrics VALUES(?,?,?,?,?)", metrics)
     c.commit(); c.close()
-    print(f"  loaded {len(companies)} companies, {len(metrics)} metric points")
-    return len(companies)
+    print(f"  loaded {len(metrics)} metrics for {len(companies)} companies")

@@ -18,8 +18,9 @@ def _val(mdata, code, path):
 
 def calculate_missing_metrics(code, raw_data):
     calculated = {}
-    pl = raw_data.get("profitLoss", {})
-    bs = raw_data.get("balanceSheet", {})
+    # FIX: Access the 'data' dictionary inside the sections
+    pl = raw_data.get("profitLoss", {}).get("data", {})
+    bs = raw_data.get("balanceSheet", {}).get("data", {})
     
     def get_latest(section, key_part):
         for key, val in section.items():
@@ -62,7 +63,6 @@ def calculate_missing_metrics(code, raw_data):
 def score_sector(codes, playbook, mdata, raw_map):
     layers = []
     for m in playbook.get("metrics", []):
-        # Handle both old (no scorable field) and new (scorable: true/false) formats
         if m.get("scorable", True) == False:
             continue
             
